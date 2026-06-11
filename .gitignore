@@ -1,0 +1,4 @@
+__pycache__/
+*.pyc
+workspaces/
+tests/e2e_output.txt
