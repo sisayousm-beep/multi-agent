@@ -66,8 +66,8 @@ class LogView:
         self.scroll = max(0, min(max_scroll, self.scroll + dy * 3))
 
     def draw(self, screen: pygame.Surface):
-        pygame.draw.rect(screen, (18, 18, 22), self.rect)
-        pygame.draw.line(screen, (70, 70, 80), self.rect.topleft, self.rect.topright)
+        pygame.draw.rect(screen, layout.KV_BG, self.rect)
+        pygame.draw.line(screen, layout.KV_ORANGE_DARK, self.rect.topleft, self.rect.topright)
         visible = (self.rect.h - 12) // LOG_LINE_H
         end = len(self.lines) - self.scroll
         start = max(0, end - visible)
@@ -110,11 +110,11 @@ class InputBox:
         return None
 
     def draw(self, screen: pygame.Surface):
-        pygame.draw.rect(screen, (28, 28, 34), self.rect)
-        pygame.draw.line(screen, (70, 70, 80), self.rect.topleft, self.rect.topright)
+        pygame.draw.rect(screen, (30, 28, 26), self.rect)
+        pygame.draw.line(screen, layout.KV_ORANGE_DARK, self.rect.topleft, self.rect.topright)
         box = self.rect.inflate(-20, -24)
-        pygame.draw.rect(screen, (15, 15, 18), box, border_radius=4)
-        pygame.draw.rect(screen, (90, 90, 105), box, width=1, border_radius=4)
+        pygame.draw.rect(screen, (18, 17, 17), box, border_radius=4)
+        pygame.draw.rect(screen, layout.KV_ORANGE_DIM, box, width=1, border_radius=4)
 
         shown = "> " + self.text
         label = self.font.render(shown, True, (230, 230, 235))
@@ -129,7 +129,7 @@ class InputBox:
             x += comp.get_width()
         # 커서 (0.5초 점멸)
         if int(time.time() * 2) % 2 == 0:
-            pygame.draw.line(screen, (230, 230, 235),
+            pygame.draw.line(screen, layout.KV_ORANGE,
                              (x + 2, box.y + 8), (x + 2, box.bottom - 8))
 
 
@@ -139,6 +139,14 @@ class UIApp:
         self.smoke_frames = smoke_frames
         pygame.init()
         pygame.display.set_caption("멀티 에이전트 시스템")
+        # 키비쥬얼을 창 아이콘 + 맵 로고로 사용 (없으면 생략)
+        self.logo: pygame.Surface | None = None
+        try:
+            kv = pygame.image.load("키비쥬얼.png")
+            pygame.display.set_icon(kv)
+            self.logo = pygame.transform.smoothscale(kv, (40, 40))
+        except (pygame.error, FileNotFoundError):
+            pass
         self.screen = pygame.display.set_mode((layout.WINDOW_W, layout.WINDOW_H))
         self.clock = pygame.time.Clock()
 
@@ -214,7 +222,7 @@ class UIApp:
                     even = ((tx // layout.TILE) + (ty // layout.TILE)) % 2 == 0
                     tile = pygame.Rect(tx, ty, layout.TILE, layout.TILE).clip(rect)
                     pygame.draw.rect(self.screen, light if even else dark, tile)
-            pygame.draw.rect(self.screen, (110, 110, 125), rect, width=1)
+            pygame.draw.rect(self.screen, layout.KV_ORANGE_DARK, rect, width=1)
             tag = self.font_zone.render(label, True, (235, 235, 240))
             self.screen.blit(tag, (rect.x + 8, rect.y + 6))
 
@@ -222,6 +230,12 @@ class UIApp:
         for actor in sorted(self.actors.values(), key=lambda a: a.pos.y):
             actor.draw(self.screen, self.font_label, self.font_bubble,
                        layout.AGENT_LABELS.get(actor.name, actor.name))
+
+        # 키비쥬얼 로고 + 타이틀 (상단 좌측 여백)
+        if self.logo:
+            self.screen.blit(self.logo, (12, 5))
+            title = self.font_zone.render("멀티 에이전트 시스템", True, layout.KV_ORANGE)
+            self.screen.blit(title, (60, 5 + (40 - title.get_height()) // 2))
 
         # 모델 전환 배너 (리스크 6)
         if self.banner_text and time.time() < self.banner_until:
@@ -256,7 +270,7 @@ class UIApp:
             for actor in self.actors.values():
                 actor.update(dt)
 
-            self.screen.fill((10, 10, 12))
+            self.screen.fill(layout.KV_BG)
             self.draw_map()
             self.log.draw(self.screen)
             self.input.draw(self.screen)

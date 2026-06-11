@@ -7,6 +7,12 @@ import pygame
 WINDOW_W, WINDOW_H = 960, 720
 FPS = 60
 
+# 키비쥬얼.png 기반 팔레트 (다크 배경 + 오렌지 로봇)
+KV_BG = (23, 23, 23)            # 키비쥬얼 배경색
+KV_ORANGE = (240, 128, 80)      # 메인 오렌지 (마스코트 몸통)
+KV_ORANGE_DIM = (150, 75, 50)   # 보조 오렌지 (테두리)
+KV_ORANGE_DARK = (96, 48, 32)   # 어두운 오렌지 (구분선)
+
 MAP_RECT = pygame.Rect(0, 0, WINDOW_W, 430)
 LOG_RECT = pygame.Rect(0, 430, WINDOW_W, 230)
 INPUT_RECT = pygame.Rect(0, 660, WINDOW_W, 60)
@@ -18,8 +24,8 @@ ZONES = {
     "dev": (pygame.Rect(340, 50, 290, 260), (44, 58, 86), (38, 52, 78), "개발팀"),
     "comfyui": (pygame.Rect(660, 50, 280, 260), (82, 48, 70), (74, 42, 63), "ComfyUI"),
 }
-FLOOR_LIGHT = (58, 58, 64)   # 구역 밖 공용 바닥 타일
-FLOOR_DARK = (52, 52, 58)
+FLOOR_LIGHT = (34, 32, 30)   # 구역 밖 공용 바닥 타일 (키비쥬얼 다크 톤)
+FLOOR_DARK = (28, 27, 26)
 TILE = 32
 
 # 에이전트 홈 좌표 (스프라이트 중심점). envelope의 from/to 이름과 1:1 대응.
