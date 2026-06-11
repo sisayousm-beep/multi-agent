@@ -22,7 +22,19 @@
   - `teams/dev/pm.py`: 요청에 "codex" 명시 시 Codex, 기본 Claude Code. cwd별 `asyncio.Lock`으로 같은 디렉토리 직렬화(리스크 7). 호출 중/재시도/대기 status 메시지를 q_out으로 송신
   - 타임아웃/실패는 `status: timeout|failed`인 error envelope로 오케스트레이터까지 전파
   - 테스트: `tests/test_stage3.py` + `tests/mock_cli.py` (idle/절대 상한/재시도/직렬화/병렬, 실제 CLI 불필요) — 전체 통과
-- ⏳ 다음: 4단계 (개인 비서팀 세컨드 브레인 + 일정 연동)
+- ✅ 5단계 완료 (2026-06-11): ComfyUI 에이전트 REST API 연동 + GPU 자원 중재 (§3·리스크 3·6)
+  - `comfyui_agent.py`: 단일 에이전트. health check(GET /system_stats) → POST /prompt → GET /history 폴링(2초 간격, 최대 10분) → 이미지 경로 result. 모든 결과 envelope 변환(result/error), httpx 비동기(스레드 추가 없음)
+  - `workflows/lola_base.json` + `workflows/README.md`: lola 스타일 워크플로우 placeholder 스켈레톤. 에이전트가 `{{PROMPT}}/{{NEGATIVE}}/{{SEED}}/{{WIDTH}}/{{HEIGHT}}` 토큰만 치환. 실제 체크포인트/LoRA 노드는 README 치환 지점 참고해 직접 채울 것
+  - `gpu_arbiter.py`: 리스크 6. ComfyUI 작업 전 Gemma 언로드(keep_alive:0)→/api/ps로 언로드 확인→작업→finally 재로드. busy 플래그로 전환 중 다른 요청 즉시 안내(데드락 없음)
+  - `orchestrator.py`: comfyui 경로를 mock PM 대신 ComfyUIAgent+GpuArbiter로 교체. dev/personal/분류/fallback 로직은 2~4단계 그대로. ComfyUI 미실행 시 비활성화→error envelope, 나머지 팀 정상
+  - 테스트: `tests/test_stage5.py` (네트워크 불필요, stub 주입) — 미실행/해피패스 순서/busy 데드락/타임아웃 재로드/노드에러/템플릿 치환 전체 통과. stage2 comfyui mock 단언 2개는 실제 에이전트 동작에 맞게 갱신
+- ✅ 6단계 완료 (2026-06-11): Pygame 도트풍 UI (§6·§8)
+  - `ui/main.py`: 메인 스레드 60fps 루프. 매 프레임 `q_out.get_nowait()` + `except queue.Empty`, 입력은 `q_in.put()`만 — 백엔드 연결점은 queue 2개뿐(기존 루프 무수정). 로그 패널(status 색상: running=노랑/success=초록/failed·timeout=빨강, 휠 스크롤) + 한글 IME 입력창(TEXTINPUT/TEXTEDITING) + gpu_switch 배너(리스크 6)
+  - `ui/actors.py`: 애니메이션 상태 머신 IDLE→WALK_OUT→PAUSE→WALK_BACK. request=from이 to로 걷기, status/running="..." 말풍선, result/error=바운스+✓/✗ 말풍선
+  - `ui/sprites.py`: 외부 이미지 없이 16x16 절차적 도트 캐릭터(에이전트별 색). `get_frames()`만 교체하면 실제 스프라이트로 전환 가능
+  - `ui/layout.py`: 비서팀/개발팀/ComfyUI 구역 타일 색 구분 + 에이전트 홈 좌표
+  - `ui/mock_backend.py`: AgentRuntime 동일 인터페이스 mock. `python -m ui.main --mock`으로 백엔드 없이 UI 단독 테스트, `python -m ui.mock_backend`로 콘솔 확인
+  - 실행: `python -m ui.main` (실백엔드) / `--mock` (단독) / `--smoke N` (N프레임 후 자동 종료)
 
 ---
 
