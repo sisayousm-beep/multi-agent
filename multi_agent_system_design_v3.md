@@ -22,6 +22,11 @@
   - `teams/dev/pm.py`: 요청에 "codex" 명시 시 Codex, 기본 Claude Code. cwd별 `asyncio.Lock`으로 같은 디렉토리 직렬화(리스크 7). 호출 중/재시도/대기 status 메시지를 q_out으로 송신
   - 타임아웃/실패는 `status: timeout|failed`인 error envelope로 오케스트레이터까지 전파
   - 테스트: `tests/test_stage3.py` + `tests/mock_cli.py` (idle/절대 상한/재시도/직렬화/병렬, 실제 CLI 불필요) — 전체 통과
+- ✅ 4단계 완료 (2026-06-11): 개인 비서팀 세컨드 브레인 + 일정 연동 (§3·리스크 4)
+  - `teams/personal/brain.py`: summary.json + SECOND_BRAIN.md 키워드 매칭 검색, 동점/0건 시 Gemma 보정, 24시간 stale 경고(리스크 4), 파일 없음/깨짐은 error outcome
+  - `teams/personal/schedule.py`: schedule.json 기반 CRUD 5종(추가/조회/수정/삭제/오늘 요약), 자연어 rule-based 파싱, 임시파일+os.replace 원자적 쓰기 + asyncio.Lock 직렬화
+  - `teams/personal/pm.py`: 키워드 점수 1차 → Gemma 2차로 브레인/스케줄 라우팅, outcome을 result/error envelope로 변환
+  - 테스트: `tests/test_stage4.py` (네트워크 불필요, Ollama stub) — 전체 통과
 - ✅ 5단계 완료 (2026-06-11): ComfyUI 에이전트 REST API 연동 + GPU 자원 중재 (§3·리스크 3·6)
   - `comfyui_agent.py`: 단일 에이전트. health check(GET /system_stats) → POST /prompt → GET /history 폴링(2초 간격, 최대 10분) → 이미지 경로 result. 모든 결과 envelope 변환(result/error), httpx 비동기(스레드 추가 없음)
   - `workflows/lola_base.json` + `workflows/README.md`: lola 스타일 워크플로우 placeholder 스켈레톤. 에이전트가 `{{PROMPT}}/{{NEGATIVE}}/{{SEED}}/{{WIDTH}}/{{HEIGHT}}` 토큰만 치환. 실제 체크포인트/LoRA 노드는 README 치환 지점 참고해 직접 채울 것
@@ -201,14 +206,14 @@ claude -p "<지시 프롬프트>" --output-format json --allowedTools "Read,Edit
 
 ```
 1단계: Ollama + Gemma 12B 세팅                          ✅ 완료
-2단계: 오케스트레이터 + 각 팀 PM 기본 루프 (Fable 5 / ultrathink)
+2단계: 오케스트레이터 + 각 팀 PM 기본 루프               ✅ 완료
        └ 메시지 스키마(§4) + 동시성 골격(§6)을 이 단계에서 구현
-3단계: 개발팀 Claude Code/Codex subprocess 연동 (Fable 5 / ultrathink)
+3단계: 개발팀 Claude Code/Codex subprocess 연동          ✅ 완료
        └ subprocess 실행 정책(§7) 적용
-4단계: 개인 비서팀 세컨드 브레인 + 일정 연동 (Opus 4.8 / think)
-5단계: ComfyUI 에이전트 REST API 연동 (Opus 4.8 / think)
+4단계: 개인 비서팀 세컨드 브레인 + 일정 연동             ✅ 완료
+5단계: ComfyUI 에이전트 REST API 연동                    ✅ 완료
        └ GPU 자원 중재(리스크 6) 이 단계에서 구현
-6단계: Pygame 도트풍 UI (Fable 5 / think)
+6단계: Pygame 도트풍 UI                                 ✅ 완료
 ```
 
 > **우선순위**: Fable 5가 구독 플랜 무료인 6월 22일 전에 2~3단계 완료 목표.
