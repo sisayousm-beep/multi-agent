@@ -1,9 +1,17 @@
 # orchestrator.py — 오케스트레이터: 사용자 입력을 분류해 각 팀 PM에게 envelope로 전달
+#
+# 5단계 추가: comfyui 경로는 mock PM 대신 실제 ComfyUIAgent + GpuArbiter로 처리한다.
+# 오케스트레이터가 GPU 자원 중재자 역할을 겸한다(설계 §3·리스크 6): ComfyUI 작업 전
+# Gemma 언로드, 후(성공/실패/타임아웃 무관) 재로드. 전환 중 들어온 다른 요청은
+# busy 플래그로 즉시 안내 반환해 데드락 없이 직렬화한다.
+# dev/personal 라우팅·분류·fallback 로직은 2~4단계 그대로 유지.
 
 import httpx
 
 import config
 from messages import make_envelope
+from comfyui_agent import ComfyUIAgent
+from gpu_arbiter import GpuArbiter
 from teams.dev.pm import DevPM
 from teams.personal.pm import PersonalPM
 from teams.comfyui.pm import ComfyUIPM
@@ -24,14 +32,28 @@ class Orchestrator:
         self.pms = {
             "dev": DevPM(q_out),
             "personal": PersonalPM(q_out),
-            "comfyui": ComfyUIPM(q_out),
+            "comfyui": ComfyUIPM(q_out),  # 2단계 mock (호환 유지용, comfyui 디스패치는 agent가 처리)
         }
+        # 5단계: comfyui는 실제 에이전트 + GPU 중재로 처리
+        self.comfyui_agent = ComfyUIAgent(q_out=q_out)
+        self.arbiter = GpuArbiter(q_out)
         self._pending_input: str | None = None  # 분류 실패 후 팀 선택 대기 중인 원본 요청
 
     async def handle(self, envelope: dict):
         # request envelope 하나를 끝까지 처리해 result/error를 q_out으로 내보낸다
         task_id = envelope["task_id"]
         user_input = str(envelope["payload"].get("text", "")).strip()
+
+        # 리스크 6: ComfyUI 전환(언로드~재로드) 중에는 다른 요청을 받지 않고 즉시 안내.
+        # 이 시점엔 Gemma가 언로드돼 있어 분류용 Ollama 호출도 막아야 함(VRAM 경합 방지).
+        # busy는 finally에서 반드시 해제되므로 데드락 없음.
+        if self.arbiter.busy:
+            self.q_out.put(make_envelope(
+                task_id, "orchestrator", "user", "status", "running",
+                {"reason": "comfyui_busy",
+                 "message": "이미지 생성 중입니다. 잠시 후 다시 시도하세요."},
+            ))
+            return
 
         # fallback 2단계: 직전 분류 실패 → 이번 입력을 팀 선택으로 해석
         if self._pending_input is not None:
@@ -67,15 +89,41 @@ class Orchestrator:
             task_id, "orchestrator", pm_name, "request", "pending",
             {"text": user_input},
         )
-        try:
-            result = await self.pms[team].handle(request)
-        except Exception as exc:
-            # PM 내부 예외도 error envelope로 변환해 전파 (§4 규칙)
-            result = make_envelope(
-                task_id, pm_name, "orchestrator", "error", "failed",
-                {"reason": "pm_exception", "detail": repr(exc)},
-            )
+        if team == "comfyui":
+            result = await self._dispatch_comfyui(task_id, request)
+        else:
+            try:
+                result = await self.pms[team].handle(request)
+            except Exception as exc:
+                # PM 내부 예외도 error envelope로 변환해 전파 (§4 규칙)
+                result = make_envelope(
+                    task_id, pm_name, "orchestrator", "error", "failed",
+                    {"reason": "pm_exception", "detail": repr(exc)},
+                )
         self.q_out.put(result)
+
+    async def _dispatch_comfyui(self, task_id: str, request: dict) -> dict:
+        # 리스크 3: ComfyUI 미실행이면 GPU 전환 없이 즉시 error 반환 (Gemma 헛스왑 방지).
+        if not await self.comfyui_agent.ensure_available():
+            return make_envelope(
+                task_id, "comfyui", "orchestrator", "error", "failed",
+                {"reason": "comfyui_unavailable",
+                 "message": f"ComfyUI가 실행 중이 아님 ({config.COMFYUI_BASE_URL})"},
+            )
+        # 리스크 6: 언로드 → ComfyUI 작업 → 재로드. 재로드는 어떤 경우에도 finally에서 수행.
+        self.arbiter.busy = True
+        try:
+            await self.arbiter.prepare(task_id)
+            try:
+                return await self.comfyui_agent.handle(request)
+            except Exception as exc:
+                return make_envelope(
+                    task_id, "comfyui", "orchestrator", "error", "failed",
+                    {"reason": "comfyui_exception", "detail": repr(exc)},
+                )
+        finally:
+            await self.arbiter.restore(task_id)
+            self.arbiter.busy = False
 
     async def classify_team(self, user_input: str) -> str:
         # 1차: 규칙 기반 키워드 매칭

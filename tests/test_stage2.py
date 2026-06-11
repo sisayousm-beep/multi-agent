@@ -38,7 +38,9 @@ async def test_keyword_routing_envelope():
     assert all(ENVELOPE_KEYS <= set(m.keys()) for m in msgs), msgs
     result = [m for m in msgs if m["type"] == "result"]
     assert len(result) == 1, msgs
-    assert result[0]["from"] == "pm_assistant", result[0]
+    # 4단계에서 mock PM → 실제 비서팀으로 교체: result는 하위 에이전트(brain/schedule)가 귀속
+    # (개발팀이 claude_code/codex로 귀속하는 것과 동일 패턴). PM은 status 메시지로 분리 송신.
+    assert result[0]["from"] in ("brain", "schedule"), result[0]
     assert result[0]["status"] == "success", result[0]
     assert any(m["type"] == "status" for m in msgs), msgs  # UI용 status 분리 확인
     print("PASS: keyword routing + envelope schema")
@@ -59,13 +61,13 @@ async def test_fallback_team_selection():
     assert len(errors) == 1, msgs
     assert errors[0]["payload"]["reason"] == "classification_failed", errors[0]
 
-    # 사용자가 팀 이름으로 응답 → comfyui mock PM 결과 수신
+    # 사용자가 팀 이름으로 응답 → comfyui 경로(5단계: 실제 에이전트)로 라우팅.
+    # 테스트 환경엔 ComfyUI가 없으므로 health check 실패 → error envelope 반환(리스크 3).
     await orch.handle(user_request("comfyui"))
     msgs = drain(q_out)
-    result = [m for m in msgs if m["type"] == "result"]
-    assert len(result) == 1, msgs
-    assert result[0]["from"] == "comfyui", result[0]
-    assert "아무 키워드에도 안 걸리는 요청" in result[0]["payload"]["result"], result[0]
+    comfy = [m for m in msgs if m["from"] == "comfyui"]
+    assert len(comfy) == 1 and comfy[0]["type"] == "error", msgs
+    assert comfy[0]["payload"]["reason"] == "comfyui_unavailable", comfy[0]
     print("PASS: classification fallback -> user team selection")
 
 
@@ -103,7 +105,8 @@ def test_runtime_skeleton():
         if msg["type"] in ("result", "error") and msg["task_id"] == task_id:
             break
     rt.stop()
-    assert deadline_msgs[-1]["type"] == "result", deadline_msgs
+    # 5단계: comfyui는 실제 에이전트. ComfyUI 미실행 환경이면 error, 실행 중이면 result.
+    assert deadline_msgs[-1]["type"] in ("result", "error"), deadline_msgs
     assert deadline_msgs[-1]["from"] == "comfyui", deadline_msgs
     print("PASS: worker thread + q_in/q_out skeleton")
 

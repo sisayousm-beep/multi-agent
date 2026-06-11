@@ -1,0 +1,32 @@
+{
+  "generated_at": "2026-06-11T09:00:00+09:00",
+  "documents": [
+    {
+      "id": "rag-notes",
+      "title": "RAG 파이프라인 정리",
+      "path": "notes/rag.md",
+      "summary": "RAG는 검색(retrieval)으로 가져온 문서를 LLM 프롬프트에 끼워 환각을 줄이는 패턴. 청킹/임베딩/벡터DB/리랭킹 4단계로 정리함.",
+      "keywords": ["rag", "retrieval", "임베딩", "벡터db", "리랭킹"],
+      "tags": ["llm", "검색"],
+      "related_topics": ["벡터 검색", "프롬프트 엔지니어링"]
+    },
+    {
+      "id": "asyncio-notes",
+      "title": "파이썬 asyncio 동시성 메모",
+      "path": "notes/asyncio.md",
+      "summary": "이벤트 루프는 단일 스레드. 블로킹 호출은 run_in_executor로 감싸고, subprocess는 create_subprocess_exec로 다룬다.",
+      "keywords": ["asyncio", "이벤트 루프", "동시성", "subprocess"],
+      "tags": ["python", "concurrency"],
+      "related_topics": ["스레드", "큐"]
+    },
+    {
+      "id": "comfyui-notes",
+      "title": "ComfyUI 워크플로우 메모",
+      "path": "notes/comfyui.md",
+      "summary": "ComfyUI는 노드 그래프로 이미지 생성 워크플로우를 구성. REST API(localhost:8188)로 워크플로우 JSON을 큐에 넣어 실행한다.",
+      "keywords": ["comfyui", "워크플로우", "노드", "이미지생성"],
+      "tags": ["image", "api"],
+      "related_topics": ["stable diffusion", "vram"]
+    }
+  ]
+}
