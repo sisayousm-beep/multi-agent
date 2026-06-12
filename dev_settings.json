@@ -1,0 +1,5 @@
+{
+  "default_model": "sonnet",
+  "default_effort": "medium",
+  "autonomy_mode": "manual"
+}

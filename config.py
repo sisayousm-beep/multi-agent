@@ -7,6 +7,28 @@ import shutil
 OLLAMA_BASE_URL = "http://localhost:11434"
 OLLAMA_MODEL = "gemma4:12b-it-q4_K_M"
 OLLAMA_TIMEOUT = 120  # 분류 호출 타임아웃 (초) — RAM 오프로딩 시 느린 응답 감안
+# RTX 4060 8GB에 gemma 12b q4 전체(49층) 적재 불가 → 44층 GPU + 나머지 RAM 오프로딩.
+# 모든 /api/generate 호출이 같은 값을 보내야 모델 재로드가 반복되지 않는다.
+OLLAMA_NUM_GPU = 44
+
+# 에이전트별 모델 분리: 분류(orchestrator/pm_assistant)는 경량 모델, brain은 12B 유지
+# 주의: ollama의 "qwen3:4b" 태그는 thinking 변형(분류에 20s+ 사고 토큰 낭비) →
+# 비-thinking instruct 변형을 사용한다.
+OLLAMA_MODEL_FAST = "qwen3:4b-instruct"
+AGENT_MODELS = {
+    "orchestrator": OLLAMA_MODEL_FAST,
+    "pm_assistant": OLLAMA_MODEL_FAST,
+    "brain": OLLAMA_MODEL,
+}
+# keep_alive: 경량 모델은 영구 상주(-1), 12B는 10분
+OLLAMA_KEEP_ALIVE_BY_MODEL = {
+    OLLAMA_MODEL_FAST: -1,
+    OLLAMA_MODEL: "10m",
+}
+
+# 오케스트레이터 fast-path: 인사말이면 LLM 분류 없이 즉시 응답 (구두점 제거 후 비교)
+GREETING_WORDS = {"안녕", "안녕하세요", "하이", "ㅎㅇ", "헬로", "hello", "hi", "hey"}
+GREETING_REPLY = "안녕하세요! 무엇을 도와드릴까요? (dev / personal / comfyui)"
 
 # 재시도 설정 (Ollama 호출 / subprocess 공용)
 MAX_RETRIES = 3
@@ -60,6 +82,6 @@ COMFYUI_STYLE_PREFIX = "lola style, "
 COMFYUI_NEGATIVE = "lowres, bad anatomy, worst quality, low quality, jpeg artifacts"
 
 # 리스크 6: Ollama ↔ ComfyUI VRAM 경합 → 순차 전환용 Ollama 제어
-OLLAMA_KEEP_ALIVE = "5m"             # 재로드 시 유지 시간
+OLLAMA_KEEP_ALIVE = OLLAMA_KEEP_ALIVE_BY_MODEL[OLLAMA_MODEL]  # 12B 재로드 시 유지 시간
 OLLAMA_UNLOAD_POLL_INTERVAL = 1      # /api/ps 로 언로드 확인 폴링 간격 (초)
 OLLAMA_UNLOAD_POLL_MAX = 15          # 언로드 확인 최대 시도 횟수

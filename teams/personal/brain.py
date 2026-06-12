@@ -13,6 +13,7 @@
 import json
 import os
 import time
+from functools import partial
 
 import config
 from ollama_client import call_ollama
@@ -30,7 +31,8 @@ class BrainAgent:
         self.summary_path = summary_path or config.BRAIN_SUMMARY_JSON
         self.brain_md_path = brain_md_path or config.BRAIN_MD
         self.stale_after = stale_after if stale_after is not None else config.STALE_AFTER_SECONDS
-        self._ollama = ollama_call or call_ollama
+        self._ollama = ollama_call or partial(
+            call_ollama, model=config.AGENT_MODELS[self.name])
 
     def _load_summary(self) -> tuple[list[dict], float]:
         # 파일 없음 → FileNotFoundError, 깨짐/스키마 불량 → ValueError (run에서 error로 변환)

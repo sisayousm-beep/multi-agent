@@ -4,6 +4,8 @@
 # - 결과를 envelope로 오케스트레이터에 반환, 진행 중 status 메시지를 q_out으로 송신
 # - 브레인/스케줄 에이전트는 outcome dict 반환 → PM이 result/error envelope로 변환 (§4)
 
+from functools import partial
+
 import config
 from messages import make_envelope
 from ollama_client import call_ollama
@@ -18,7 +20,8 @@ class PersonalPM:
         self.q_out = q_out
         self.brain = brain or BrainAgent()
         self.schedule = schedule or ScheduleAgent()
-        self._ollama = ollama_call or call_ollama
+        self._ollama = ollama_call or partial(
+            call_ollama, model=config.AGENT_MODELS[self.name])
 
     def _status(self, task_id: str, to: str, detail: str):
         # UI 전용 status 메시지 (캐릭터 애니메이션 트리거, §4/§8)
@@ -54,19 +57,27 @@ class PersonalPM:
     async def handle(self, envelope: dict) -> dict:
         task_id = envelope["task_id"]
         text = envelope["payload"]["text"]
+        self._status(task_id, "orchestrator", "요청 분석 중")  # 규약 1: PM 작업 시작
         target = await self._classify(text)
         agent = self.brain if target == "brain" else self.schedule
 
         self._status(task_id, agent.name, f"{agent.name} 처리 중")
+        # 규약 1: 하위 에이전트(brain/schedule) 작업 시작 running emit
+        self.q_out.put(make_envelope(
+            task_id, agent.name, self.name, "status", "running",
+            {"detail": "작업 시작"},
+        ))
         outcome = await agent.run(text)
 
-        if outcome["ok"]:
-            return make_envelope(
-                task_id, agent.name, "orchestrator", "result", "success",
-                outcome["payload"],
-            )
-        # 파일 없음/깨짐 등 실패는 error envelope로 오케스트레이터까지 전파 (§4 규칙)
+        # 규약 1: 하위 에이전트 종료 envelope(q_out) + PM 자신의 종료 envelope(반환).
+        # 파일 없음/깨짐 등 실패도 error envelope로 오케스트레이터까지 전파 (§4 규칙)
+        leaf_type = "result" if outcome["ok"] else "error"
+        leaf_status = "success" if outcome["ok"] else outcome["status"]
+        self.q_out.put(make_envelope(
+            task_id, agent.name, self.name, leaf_type, leaf_status,
+            outcome["payload"],
+        ))
         return make_envelope(
-            task_id, agent.name, "orchestrator", "error", outcome["status"],
+            task_id, self.name, "orchestrator", leaf_type, leaf_status,
             outcome["payload"],
         )

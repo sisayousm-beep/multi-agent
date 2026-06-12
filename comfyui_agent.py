@@ -153,6 +153,7 @@ class ComfyUIAgent:
         # request envelope 하나를 처리해 result/error envelope를 반환한다.
         task_id = envelope["task_id"]
         text = str(envelope["payload"].get("text", "")).strip()
+        self._status(task_id, "이미지 생성 작업 시작")  # 규약 1: 작업 시작 running
         prompt_id = None
         try:
             workflow = self.build_workflow(text)

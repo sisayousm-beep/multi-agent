@@ -31,6 +31,7 @@ class Actor:
         # 말풍선: (text, color, 남은 시간)
         self.bubble = None
         self.bounce_left = 0.0
+        self.active = False  # 활성 task 보유 여부 — UIApp이 매 프레임 갱신
 
     # --- envelope 트리거 ---
 
@@ -105,7 +106,13 @@ class Actor:
         rect = frame.get_rect(center=(self.pos.x, self.pos.y + bob + bounce))
         screen.blit(frame, rect)
 
-        name_label = label_font.render(label, True, (225, 225, 230))
+        # 활성 표시: 캐릭터 위 노란 점멸 + 이름 하이라이트 (에이전트별 독립)
+        if self.active and int(self.anim_t * 3) % 2 == 0:
+            pygame.draw.circle(screen, (255, 211, 80),
+                               (int(self.pos.x), rect.top - 8), 4)
+
+        label_color = (255, 211, 80) if self.active else (225, 225, 230)
+        name_label = label_font.render(label, True, label_color)
         screen.blit(name_label, name_label.get_rect(midtop=(self.pos.x, rect.bottom - 2)))
 
         if self.bubble:

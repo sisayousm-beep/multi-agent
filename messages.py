@@ -3,7 +3,16 @@
 import uuid
 from datetime import datetime, timezone
 
-TYPES = ("request", "result", "error", "status")
+# payload 규약 (신규 3종 — 기존 request/result/error/status 동작은 변경 없음):
+#   approval_request (pm_dev → user):
+#     {"proposed_model", "proposed_effort", "reason", "default_model", "request_id"}
+#   approval_response (user → pm_dev):
+#     {"request_id", "approved": bool}
+#   settings_update (user → pm_dev):
+#     dev_settings.json 스키마와 동일한 부분 dict
+#     ({"default_model"?, "default_effort"?, "autonomy_mode"?})
+TYPES = ("request", "result", "error", "status",
+         "approval_request", "approval_response", "settings_update")
 STATUSES = ("pending", "running", "success", "failed", "timeout")
 
 

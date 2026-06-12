@@ -114,7 +114,9 @@ async def test_other_team_works_when_comfyui_down():
     await orch.handle(user_request("내일 일정 알려줘"))  # 키워드 → personal
     msgs = drain(q_out)
     res = [m for m in msgs if m["type"] == "result"]
-    assert len(res) == 1 and res[0]["from"] == "pm_assistant", msgs
+    # 규약 4: PM result + orchestrator→user 최종, 2개 (StubPM은 leaf emit 없음)
+    assert len(res) == 2 and res[0]["from"] == "pm_assistant", msgs
+    assert res[-1]["from"] == "orchestrator" and res[-1]["to"] == "user", res[-1]
     print("PASS: comfyui 비활성화 상태에서도 personal 팀 정상")
 
 

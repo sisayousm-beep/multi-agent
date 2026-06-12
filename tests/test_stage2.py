@@ -37,11 +37,12 @@ async def test_keyword_routing_envelope():
     msgs = drain(q_out)
     assert all(ENVELOPE_KEYS <= set(m.keys()) for m in msgs), msgs
     result = [m for m in msgs if m["type"] == "result"]
-    assert len(result) == 1, msgs
-    # 4단계에서 mock PM → 실제 비서팀으로 교체: result는 하위 에이전트(brain/schedule)가 귀속
-    # (개발팀이 claude_code/codex로 귀속하는 것과 동일 패턴). PM은 status 메시지로 분리 송신.
+    # 규약 1·4: 하위 에이전트(brain/schedule) → PM → orchestrator→user 최종, 3개
+    assert len(result) == 3, msgs
     assert result[0]["from"] in ("brain", "schedule"), result[0]
-    assert result[0]["status"] == "success", result[0]
+    assert result[1]["from"] == "pm_assistant", result[1]
+    assert result[-1]["from"] == "orchestrator" and result[-1]["to"] == "user", result[-1]
+    assert all(r["status"] == "success" for r in result), result
     assert any(m["type"] == "status" for m in msgs), msgs  # UI용 status 분리 확인
     print("PASS: keyword routing + envelope schema")
 
@@ -84,9 +85,11 @@ async def test_pm_exception_to_error_envelope():
     await orch.handle(user_request("일정 알려줘"))
     msgs = drain(q_out)
     errors = [m for m in msgs if m["type"] == "error"]
-    assert len(errors) == 1, msgs
-    assert errors[0]["status"] == "failed", errors[0]
-    assert "boom" in errors[0]["payload"]["detail"], errors[0]
+    # 규약 4: 예외 변환 error + orchestrator→user 최종 error, 2개
+    assert len(errors) == 2, msgs
+    assert errors[-1]["to"] == "user", errors[-1]
+    assert all(e["status"] == "failed" for e in errors), errors
+    assert all("boom" in e["payload"]["detail"] for e in errors), errors
     print("PASS: pm exception -> error envelope")
 
 

@@ -169,10 +169,13 @@ async def test_pm_routing():
                         schedule=ScheduleAgent(path=os.path.join(tmp, "s.json")),
                         ollama_call=stub_empty)
         r1 = await pm.handle(user_request("RAG 관련해서 내가 정리한 거 있어?"))
-        assert r1["from"] == "brain" and r1["type"] == "result", r1
+        assert r1["from"] == "pm_assistant" and r1["type"] == "result", r1
         r2 = await pm.handle(user_request("내일 3시 회의 추가"))
-        assert r2["from"] == "schedule" and r2["type"] == "result", r2
+        assert r2["from"] == "pm_assistant" and r2["type"] == "result", r2
         assert ENVELOPE_KEYS <= set(r1.keys()) and ENVELOPE_KEYS <= set(r2.keys())
+        # 규약 1: 하위 에이전트 종료 envelope는 q_out으로 분리 송신 (라우팅 검증)
+        leaf = [m for m in drain(q_out) if m["type"] == "result"]
+        assert [m["from"] for m in leaf] == ["brain", "schedule"], leaf
     print("PASS: PM 브레인/스케줄 라우팅")
 
 
@@ -203,14 +206,17 @@ async def test_orchestrator_e2e():
     msgs = drain(q_out)
     assert all(ENVELOPE_KEYS <= set(m.keys()) for m in msgs), msgs
     res = [m for m in msgs if m["type"] == "result"]
-    assert len(res) == 1 and res[0]["from"] == "brain", msgs
+    # 규약 1·4: brain → pm_assistant → orchestrator→user 최종, 3개
+    assert len(res) == 3 and res[0]["from"] == "brain", msgs
+    assert res[-1]["from"] == "orchestrator" and res[-1]["to"] == "user", res[-1]
     assert "RAG" in res[0]["payload"]["answer"], res[0]
     assert any(m["type"] == "status" for m in msgs), msgs  # 진행중 status 분리
 
     await orch.handle(user_request("내일 3시 회의 추가"))
     msgs = drain(q_out)
     res = [m for m in msgs if m["type"] == "result"]
-    assert len(res) == 1 and res[0]["from"] == "schedule", msgs
+    assert len(res) == 3 and res[0]["from"] == "schedule", msgs
+    assert res[-1]["to"] == "user", res[-1]
     assert res[0]["payload"]["action"] == "add", res[0]
     print("PASS: 오케스트레이터 → 비서팀 PM E2E (브레인/스케줄)")
 
@@ -231,8 +237,10 @@ async def test_orchestrator_brain_error():
     await orch.handle(user_request("RAG 관련 정리한 거 찾아줘"))
     msgs = drain(q_out)
     errs = [m for m in msgs if m["type"] == "error"]
-    assert len(errs) == 1 and errs[0]["from"] == "brain", msgs
-    assert errs[0]["payload"]["reason"] == "file_not_found", errs[0]
+    # 규약 1·4: brain → pm_assistant → orchestrator→user 최종, 3개
+    assert len(errs) == 3 and errs[0]["from"] == "brain", msgs
+    assert errs[-1]["from"] == "orchestrator" and errs[-1]["to"] == "user", errs[-1]
+    assert all(e["payload"]["reason"] == "file_not_found" for e in errs), errs
     print("PASS: 파일 없음 error 경로 오케스트레이터까지 전파")
 
 

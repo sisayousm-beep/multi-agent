@@ -13,8 +13,14 @@ KV_ORANGE = (240, 128, 80)      # 메인 오렌지 (마스코트 몸통)
 KV_ORANGE_DIM = (150, 75, 50)   # 보조 오렌지 (테두리)
 KV_ORANGE_DARK = (96, 48, 32)   # 어두운 오렌지 (구분선)
 
+# 토큰 속도 그래프 패널: 토글 시 창이 오른쪽으로 PANEL_W만큼 확장
+PANEL_W = 320
+PANEL_RECT = pygame.Rect(WINDOW_W, 0, PANEL_W, WINDOW_H)
+GRAPH_BTN_RECT = pygame.Rect(WINDOW_W - 104, 8, 96, 26)  # 우측 상단 토글 버튼
+
 MAP_RECT = pygame.Rect(0, 0, WINDOW_W, 430)
-LOG_RECT = pygame.Rect(0, 430, WINDOW_W, 230)
+TASKBAR_RECT = pygame.Rect(0, 430, WINDOW_W, 26)  # 태스크 상태 바: 로그 위 한 줄
+LOG_RECT = pygame.Rect(0, 456, WINDOW_W, 204)
 INPUT_RECT = pygame.Rect(0, 660, WINDOW_W, 60)
 
 # 팀 구역: 배경 타일 색상으로 비서팀/개발팀/ComfyUI를 시각 구분 (§8)

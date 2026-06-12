@@ -34,7 +34,8 @@ async def _ollama_loaded_models():
 async def _ollama_reload():
     # 더미 요청으로 Gemma를 다시 VRAM에 로드 (재로드 지연 감수)
     payload = {"model": config.OLLAMA_MODEL, "prompt": " ", "stream": False,
-               "keep_alive": config.OLLAMA_KEEP_ALIVE}
+               "keep_alive": config.OLLAMA_KEEP_ALIVE,
+               "options": {"num_gpu": config.OLLAMA_NUM_GPU}}
     async with httpx.AsyncClient(timeout=config.OLLAMA_TIMEOUT) as client:
         resp = await client.post(f"{config.OLLAMA_BASE_URL}/api/generate", json=payload)
         resp.raise_for_status()
